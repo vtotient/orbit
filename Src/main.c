@@ -24,6 +24,187 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
+const registerSetting_t standardRegisters1[]={ //configure register settings here
+  {IOCFG3,              0xB0}, //GPIO3 IO Pin Configuration
+  {IOCFG2,              0x06}, //GPIO2 IO Pin Configuration
+  {IOCFG1,              0xB0}, //GPIO1 IO Pin Configuration
+  {IOCFG0,              0x40}, //GPIO0 IO Pin Configuration
+  {SYNC3,               0x93}, //Sync Word Configuration [31:24]
+  {SYNC2,               0x0B}, //Sync Word Configuration [23:16]
+  {SYNC1,               0x51}, //Sync Word Configuration [15:8]
+  {SYNC0,               0xDE}, //Sync Word Configuration [7:0]
+  {SYNC_CFG1,           0x0B}, //Sync Word Detection Configuration Reg. 1
+  {SYNC_CFG0,           0x17}, //Sync Word Length Configuration Reg. 0
+  {DEVIATION_M,         0x06}, //Frequency Deviation Configuration
+  {MODCFG_DEV_E,        0x03}, //Modulation Format and Frequency Deviation Configur..
+  {DCFILT_CFG,          0x1C}, //Digital DC Removal Configuration
+  {PREAMBLE_CFG1,       0x18}, //Preamble Length Configuration Reg. 1
+  {PREAMBLE_CFG0,       0x2A}, //Preamble Detection Configuration Reg. 0
+  {FREQ_IF_CFG,         0x40}, //RX Mixer Frequency Configuration
+  {IQIC,                0xC6}, //Digital Image Channel Compensation Configuration
+  {CHAN_BW,             0x08}, //Channel Filter Configuration
+  {MDMCFG1,             0x46}, //General Modem Parameter Configuration Reg. 1
+  {MDMCFG0,             0x05}, //General Modem Parameter Configuration Reg. 0
+  {SYMBOL_RATE2,        0x43}, //Symbol Rate Configuration Exponent and Mantissa [1..
+  {SYMBOL_RATE1,        0xA9}, //Symbol Rate Configuration Mantissa [15:8]
+  {SYMBOL_RATE0,        0x2A}, //Symbol Rate Configuration Mantissa [7:0]
+  {AGC_REF,             0x20}, //AGC Reference Level Configuration
+  {AGC_CS_THR,          0x19}, //Carrier Sense Threshold Configuration
+  {AGC_GAIN_ADJUST,     0x00}, //RSSI Offset Configuration
+  {AGC_CFG3,            0x91}, //Automatic Gain Control Configuration Reg. 3
+  {AGC_CFG2,            0x20}, //Automatic Gain Control Configuration Reg. 2
+  {AGC_CFG1,            0xA9}, //Automatic Gain Control Configuration Reg. 1
+  {AGC_CFG0,            0xCF}, //Automatic Gain Control Configuration Reg. 0
+  {FIFO_CFG,            64}, //FIFO Configuration
+  {DEV_ADDR,            0x00}, //Device Address Configuration
+  {SETTLING_CFG,        0x03}, //Frequency Synthesizer Calibration and Settling Con..
+  {FS_CFG,              0b00010100}, //Frequency Synthesizer Configuration
+  {WOR_CFG1,            0x08}, //eWOR Configuration Reg. 1
+  {WOR_CFG0,            0x21}, //eWOR Configuration Reg. 0
+  {WOR_EVENT0_MSB,      0x00}, //Event 0 Configuration MSB
+  {WOR_EVENT0_LSB,      0x00}, //Event 0 Configuration LSB
+  {PKT_CFG2,            0x04}, //Packet Configuration Reg. 2
+  {PKT_CFG1,            0x05}, //Packet Configuration Reg. 1
+  {PKT_CFG0,            0x00}, //Packet Configuration Reg. 0
+  {RFEND_CFG1,          0x0F}, //RFEND Configuration Reg. 1
+  {RFEND_CFG0,          0x00}, //RFEND Configuration Reg. 0
+  {PA_CFG2,             0x7F}, //Power Amplifier Configuration Reg. 2
+  {PA_CFG1,             0x56}, //Power Amplifier Configuration Reg. 1
+  {PA_CFG0,             0x7C}, //Power Amplifier Configuration Reg. 0
+  {PKT_LEN,             127} //Packet Length Configuration
+};
+
+//==================================================
+
+const registerSetting_t extendedRegisters1[]={ //configure extended register settings here
+{IF_MIX_CFG,          0x00}, //IF Mix Configuration
+  {FREQOFF_CFG,         0x22}, //Frequency Offset Correction Configuration
+  {TOC_CFG,             0x0B}, //Timing Offset Correction Configuration
+  {MARC_SPARE,          0x00}, //MARC Spare
+  {ECG_CFG,             0x00}, //External Clock Frequency Configuration
+  {CFM_DATA_CFG,        0x00}, //Custom frequency modulation enable
+  {EXT_CTRL,            0x01}, //External Control Configuration
+  {RCCAL_FINE,          0x00}, //RC Oscillator Calibration Fine
+  {RCCAL_COARSE,        0x00}, //RC Oscillator Calibration Coarse
+  {RCCAL_OFFSET,        0x00}, //RC Oscillator Calibration Clock Offset
+  {FREQOFF1,            0x00}, //Frequency Offset MSB
+  {FREQOFF0,            0x00}, //Frequency Offset LSB
+  {FREQ2,               0x6C}, //Frequency Configuration [23:16]
+  {FREQ1,               0x40}, //Frequency Configuration [15:8]
+  {FREQ0,               0x00}, //Frequency Configuration [7:0]
+  {IF_ADC2,             0x02}, //Analog to Digital Converter Configuration Reg. 2
+  {IF_ADC1,             0xA6}, //Analog to Digital Converter Configuration Reg. 1
+  {IF_ADC0,             0x04}, //Analog to Digital Converter Configuration Reg. 0
+  {FS_DIG1,             0x00}, //Frequency Synthesizer Digital Reg. 1
+  {FS_DIG0,             0x5F}, //Frequency Synthesizer Digital Reg. 0
+  {FS_CAL3,             0x00}, //Frequency Synthesizer Calibration Reg. 3
+  {FS_CAL2,             0x20}, //Frequency Synthesizer Calibration Reg. 2
+  {FS_CAL1,             0x40}, //Frequency Synthesizer Calibration Reg. 1
+  {FS_CAL0,             0x0E}, //Frequency Synthesizer Calibration Reg. 0
+  {FS_CHP,              0x27}, //Frequency Synthesizer Charge Pump Configuration
+  {FS_DIVTWO,           0x03}, //Frequency Synthesizer Divide by 2
+  {FS_DSM1,             0x00}, //FS Digital Synthesizer Module Configuration Reg. 1
+  {FS_DSM0,             0x33}, //FS Digital Synthesizer Module Configuration Reg. 0
+  {FS_DVC1,             0xFF}, //Frequency Synthesizer Divider Chain Configuration ..
+  {FS_DVC0,             0x17}, //Frequency Synthesizer Divider Chain Configuration ..
+  {FS_LBI,              0x00}, //Frequency Synthesizer Local Bias Configuration
+  {FS_PFD,              0x50}, //Frequency Synthesizer Phase Frequency Detector Con..
+  {FS_PRE,              0x6E}, //Frequency Synthesizer Prescaler Configuration
+  {FS_REG_DIV_CML,      0x14}, //Frequency Synthesizer Divider Regulator Configurat..
+  {FS_SPARE,            0xAC}, //Frequency Synthesizer Spare
+  {FS_VCO4,             0x13}, //FS Voltage Controlled Oscillator Configuration Reg..
+  {FS_VCO3,             0x00}, //FS Voltage Controlled Oscillator Configuration Reg..
+  {FS_VCO2,             0x4C}, //FS Voltage Controlled Oscillator Configuration Reg..
+  {FS_VCO1,             0x9C}, //FS Voltage Controlled Oscillator Configuration Reg..
+  {FS_VCO0,             0xB4}, //FS Voltage Controlled Oscillator Configuration Reg..
+  {GBIAS6,              0x00}, //Global Bias Configuration Reg. 6
+  {GBIAS5,              0x02}, //Global Bias Configuration Reg. 5
+  {GBIAS4,              0x00}, //Global Bias Configuration Reg. 4
+  {GBIAS3,              0x00}, //Global Bias Configuration Reg. 3
+  {GBIAS2,              0x10}, //Global Bias Configuration Reg. 2
+  {GBIAS1,              0x00}, //Global Bias Configuration Reg. 1
+  {GBIAS0,              0x00}, //Global Bias Configuration Reg. 0
+  {IFAMP,               0x01}, //Intermediate Frequency Amplifier Configuration
+  {LNA,                 0x01}, //Low Noise Amplifier Configuration
+  {RXMIX,               0x01}, //RX Mixer Configuration
+  {XOSC5,               0x0E}, //Crystal Oscillator Configuration Reg. 5
+  {XOSC4,               0xA0}, //Crystal Oscillator Configuration Reg. 4
+  {XOSC3,               0x03}, //Crystal Oscillator Configuration Reg. 3
+  {XOSC2,               0x04}, //Crystal Oscillator Configuration Reg. 2
+  {XOSC1,               0x03}, //Crystal Oscillator Configuration Reg. 1
+  {XOSC0,               0x00}, //Crystal Oscillator Configuration Reg. 0
+  {ANALOG_SPARE,        0x00}, //Analog Spare
+  {PA_CFG3,             0x00}, //Power Amplifier Configuration Reg. 3
+  {WOR_TIME1,           0x00}, //eWOR Timer Counter Value MSB
+  {WOR_TIME0,           0x00}, //eWOR Timer Counter Value LSB
+  {WOR_CAPTURE1,        0x00}, //eWOR Timer Capture Value MSB
+  {WOR_CAPTURE0,        0x00}, //eWOR Timer Capture Value LSB
+  {BIST,                0x00}, //MARC Built-In Self-Test
+  {DCFILTOFFSET_I1,     0xFC}, //DC Filter Offset I MSB
+  {DCFILTOFFSET_I0,     0x66}, //DC Filter Offset I LSB
+  {DCFILTOFFSET_Q1,     0x06}, //DC Filter Offset Q MSB
+  {DCFILTOFFSET_Q0,     0xE6}, //DC Filter Offset Q LSB
+  {IQIE_I1,             0xFD}, //IQ Imbalance Value I MSB
+  {IQIE_I0,             0x15}, //IQ Imbalance Value I LSB
+  {IQIE_Q1,             0x02}, //IQ Imbalance Value Q MSB
+  {IQIE_Q0,             0xEF}, //IQ Imbalance Value Q LSB
+  {RSSI1,               0xED}, //Received Signal Strength Indicator Reg. 1
+  {RSSI0,               0x03}, //Received Signal Strength Indicator Reg.0
+  {MARCSTATE,           0x33}, //MARC State
+  {LQI_VAL,             0x80}, //Link Quality Indicator Value
+  {PQT_SYNC_ERR,        0x9F}, //Preamble and Sync Word Error
+  {DEM_STATUS,          0x01}, //Demodulator Status
+  {FREQOFF_EST1,        0x00}, //Frequency Offset Estimate MSB
+  {FREQOFF_EST0,        0x0E}, //Frequency Offset Estimate LSB
+  {AGC_GAIN3,           0x27}, //Automatic Gain Control Reg. 3
+  {AGC_GAIN2,           0xD1}, //Automatic Gain Control Reg. 2
+  {AGC_GAIN1,           0x00}, //Automatic Gain Control Reg. 1
+  {AGC_GAIN0,           0x3F}, //Automatic Gain Control Reg. 0
+  {CFM_RX_DATA_OUT,     0x00}, //Custom Frequency Modulation RX Data
+  {CFM_TX_DATA_IN,      0x00}, //Custom Frequency Modulation TX Data
+  {ASK_SOFT_RX_DATA,    0x30}, //ASK Soft Decision Output
+  {RNDGEN,              0x7F}, //Random Number Generator Value
+  {MAGN2,               0x00}, //Signal Magnitude after CORDIC [16]
+  {MAGN1,               0x00}, //Signal Magnitude after CORDIC [15:8]
+  {MAGN0,               0x10}, //Signal Magnitude after CORDIC [7:0]
+  {ANG1,                0x00}, //Signal Angular after CORDIC [9:8]
+  {ANG0,                0xD5}, //Signal Angular after CORDIC [7:0]
+  {CHFILT_I2,           0x0F}, //Channel Filter Data Real Part [18:16]
+  {CHFILT_I1,           0xFF}, //Channel Filter Data Real Part [15:8]
+  {CHFILT_I0,           0xEE}, //Channel Filter Data Real Part [7:0]
+  {CHFILT_Q2,           0x00}, //Channel Filter Data Imaginary Part [18:16]
+  {CHFILT_Q1,           0x00}, //Channel Filter Data Imaginary Part [15:8]
+  {CHFILT_Q0,           0x11}, //Channel Filter Data Imaginary Part [7:0]
+  {GPIO_STATUS,         0x00}, //General Purpose Input/Output Status
+  {FSCAL_CTRL,          0x09}, //Frequency Synthesizer Calibration Control
+  {PHASE_ADJUST,        0x00}, //Frequency Synthesizer Phase Adjust
+  {PARTNUMBER,          0x48}, //Part Number
+  {PARTVERSION,         0x21}, //Part Revision
+  {SERIAL_STATUS,       0x00}, //Serial Status
+  {MODEM_STATUS1,       0x11}, //Modem Status Reg. 1
+  {MODEM_STATUS0,       0x00}, //Modem Status Reg. 0
+  {MARC_STATUS1,        0x40}, //MARC Status Reg. 1
+  {MARC_STATUS0,        0x00}, //MARC Status Reg. 0
+  {PA_IFAMP_TEST,       0x00}, //Power Amplifier Intermediate Frequency Amplifier T..
+  {FSRF_TEST,           0x00}, //Frequency Synthesizer Test
+  {PRE_TEST,            0x00}, //Frequency Synthesizer Prescaler Test
+  {PRE_OVR,             0x00}, //Frequency Synthesizer Prescaler Override
+  {ADC_TEST,            0x00}, //Analog to Digital Converter Test
+  {DVC_TEST,            0x0B}, //Digital Divider Chain Test
+  {ATEST,               0x40}, //Analog Test
+  {ATEST_LVDS,          0x00}, //Analog Test LVDS
+  {ATEST_MODE,          0x00}, //Analog Test Mode
+  {XOSC_TEST1,          0x3C}, //Crystal Oscillator Test Reg. 1
+  {XOSC_TEST0,          0x00}, //Crystal Oscillator Test Reg. 0
+  {RXFIRST,             0x00}, //RX FIFO Pointer First Entry
+  {TXFIRST,             0x0A}, //TX FIFO Pointer First Entry
+  {RXLAST,              0x00}, //RX FIFO Pointer Last Entry
+  {TXLAST,              0x0E}, //TX FIFO Pointer Last Entry
+  {NUM_TXBYTES,         0x04}, //TX FIFO Status
+  {NUM_RXBYTES,         0x00}, //RX FIFO Status
+  {FIFO_NUM_TXBYTES,    0x0F}, //TX FIFO Status
+  {FIFO_NUM_RXBYTES,    0x00}, //RX FIFO Status
+};
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -145,14 +326,14 @@ int main(void)
     /* USER CODE BEGIN 3 */
     HAL_SPI_Transmit(&hspi2, data1, sizeof(data1), HAL_MAX_DELAY);
 
-    for(uint16_t i = 0; (sizeof(standardRegisters)/sizeof(registerSetting_t)); i++)
+    for(uint16_t i = 0; (sizeof(standardRegisters1)/sizeof(registerSetting_t)); i++)
     {
-      cc_tx_wr_reg(standardRegisters[i].addr, standardRegisters[i].data);
+      cc_tx_wr_reg(standardRegisters1[i].addr, standardRegisters1[i].data);
     }
 
-    for(uint16_t i = 0; i < (sizeof(extendedRegisters)/sizeof(registerSetting_t)); i++)
+    for(uint16_t i = 0; i < (sizeof(extendedRegisters1)/sizeof(registerSetting_t)); i++)
     {
-      cc_tx_wr_reg(extendedRegisters[i].addr, extendedRegisters[i].data);
+      cc_tx_wr_reg(extendedRegisters1[i].addr, extendedRegisters1[i].data);
     }
   }
   /* USER CODE END 3 */
