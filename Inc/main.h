@@ -285,6 +285,8 @@ uint8_t cc_tx_wr_reg (uint16_t addr, uint8_t data);
 #define TMS_GPIO_Port GPIOA
 #define TCK_Pin GPIO_PIN_14
 #define TCK_GPIO_Port GPIOA
+#define GPIO_PIN_CS_Pin GPIO_PIN_15
+#define GPIO_PIN_CS_GPIO_Port GPIOA
 #define SWO_Pin GPIO_PIN_3
 #define SWO_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
