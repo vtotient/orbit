@@ -324,19 +324,24 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-  for (int i = 0;; i++)
-    {
-        int result = 0;
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
-        HAL_SPI_TransmitReceive(&hspi2, (uint8_t *)&i, (uint8_t*)&result, sizeof(i), HAL_MAX_DELAY);
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
-        if (result != (i - 1))
-        {
-            asm("nop");
-        }
-        
-        HAL_Delay(10);
-    }
+    char buff[] = "fail\r\n";
+    char buff2[] = "pass\r\n";
+    for (int i = 0;; i++)
+      {
+          int result = 0;
+          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
+          HAL_SPI_TransmitReceive(&hspi2, (uint8_t *)&i, (uint8_t*)&result, sizeof(i), HAL_MAX_DELAY);
+          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
+          if (result != (i - 1))
+          {
+              asm("nop");
+              HAL_UART_Transmit(&huart2, buff, sizeof(buff), HAL_MAX_DELAY);
+          }
+          else{
+        	  HAL_UART_Transmit(&huart2, buff2, sizeof(buff2), HAL_MAX_DELAY);
+          }
+          HAL_Delay(10);
+      }
   /* USER CODE END 3 */
   }
 }
