@@ -263,7 +263,7 @@ uint8_t datai; //byte received from spi, contains data from issued command, such
 
 typedef struct{
   uint8_t addr;
-  uint8_t data;
+  uint8_t dat;
 } registerSetting_t;
 
 uint8_t cc_tx_wr_reg (uint16_t addr, uint8_t data);

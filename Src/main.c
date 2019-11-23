@@ -20,190 +20,192 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include <string.h>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#define SFSTXON                  0x31      /*  SFSTXON - Enable and calibrate frequency synthesizer. */
+#define CC1120_TX_MAX_FRAME_LEN 255
+#define CC1120_TX_FIFO_SIZE 128
+#define CC1120_TXFIFO_THR 63
+#define CC1120_TXFIFO_IRQ_THR (127 - CC1120_TXFIFO_THR)
+#define CC1120_TXFIFO_AVAILABLE_BYTES (CC1120_TX_FIFO_SIZE - CC1120_TXFIFO_IRQ_THR + 2)
+#define CC1120_FIXED_PKT_LEN 0x00
+#define SINGLE_TXFIFO            0x3F      /*  TXFIFO  - Single access to Transmit FIFO */
+#define BURST_TXFIFO             0x7F      /*  TXFIFO  - Burst access to Transmit FIFO  */
+#define SINGLE_RXFIFO            0xBF      /*  RXFIFO  - Single access to Receive FIFO  */
+#define BURST_RXFIFO             0xFF      /*  RXFIFO  - Burst access to Receive FIFO  */
 
-const registerSetting_t standardRegisters1[]={ //configure register settings here
-  {IOCFG3,              0xB0}, //GPIO3 IO Pin Configuration
-  {IOCFG2,              0x06}, //GPIO2 IO Pin Configuration
-  {IOCFG1,              0xB0}, //GPIO1 IO Pin Configuration
-  {IOCFG0,              0x40}, //GPIO0 IO Pin Configuration
-  {SYNC3,               0x93}, //Sync Word Configuration [31:24]
-  {SYNC2,               0x0B}, //Sync Word Configuration [23:16]
-  {SYNC1,               0x51}, //Sync Word Configuration [15:8]
-  {SYNC0,               0xDE}, //Sync Word Configuration [7:0]
-  {SYNC_CFG1,           0x0B}, //Sync Word Detection Configuration Reg. 1
-  {SYNC_CFG0,           0x17}, //Sync Word Length Configuration Reg. 0
-  {DEVIATION_M,         0x06}, //Frequency Deviation Configuration
-  {MODCFG_DEV_E,        0x03}, //Modulation Format and Frequency Deviation Configur..
-  {DCFILT_CFG,          0x1C}, //Digital DC Removal Configuration
-  {PREAMBLE_CFG1,       0x18}, //Preamble Length Configuration Reg. 1
-  {PREAMBLE_CFG0,       0x2A}, //Preamble Detection Configuration Reg. 0
-  {FREQ_IF_CFG,         0x40}, //RX Mixer Frequency Configuration
-  {IQIC,                0xC6}, //Digital Image Channel Compensation Configuration
-  {CHAN_BW,             0x08}, //Channel Filter Configuration
-  {MDMCFG1,             0x46}, //General Modem Parameter Configuration Reg. 1
-  {MDMCFG0,             0x05}, //General Modem Parameter Configuration Reg. 0
-  {SYMBOL_RATE2,        0x43}, //Symbol Rate Configuration Exponent and Mantissa [1..
-  {SYMBOL_RATE1,        0xA9}, //Symbol Rate Configuration Mantissa [15:8]
-  {SYMBOL_RATE0,        0x2A}, //Symbol Rate Configuration Mantissa [7:0]
-  {AGC_REF,             0x20}, //AGC Reference Level Configuration
-  {AGC_CS_THR,          0x19}, //Carrier Sense Threshold Configuration
-  {AGC_GAIN_ADJUST,     0x00}, //RSSI Offset Configuration
-  {AGC_CFG3,            0x91}, //Automatic Gain Control Configuration Reg. 3
-  {AGC_CFG2,            0x20}, //Automatic Gain Control Configuration Reg. 2
-  {AGC_CFG1,            0xA9}, //Automatic Gain Control Configuration Reg. 1
-  {AGC_CFG0,            0xCF}, //Automatic Gain Control Configuration Reg. 0
-  {FIFO_CFG,            64}, //FIFO Configuration
-  {DEV_ADDR,            0x00}, //Device Address Configuration
-  {SETTLING_CFG,        0x03}, //Frequency Synthesizer Calibration and Settling Con..
-  {FS_CFG,              0b00010100}, //Frequency Synthesizer Configuration
-  {WOR_CFG1,            0x08}, //eWOR Configuration Reg. 1
-  {WOR_CFG0,            0x21}, //eWOR Configuration Reg. 0
-  {WOR_EVENT0_MSB,      0x00}, //Event 0 Configuration MSB
-  {WOR_EVENT0_LSB,      0x00}, //Event 0 Configuration LSB
-  {PKT_CFG2,            0x04}, //Packet Configuration Reg. 2
-  {PKT_CFG1,            0x05}, //Packet Configuration Reg. 1
-  {PKT_CFG0,            0x00}, //Packet Configuration Reg. 0
-  {RFEND_CFG1,          0x0F}, //RFEND Configuration Reg. 1
-  {RFEND_CFG0,          0x00}, //RFEND Configuration Reg. 0
-  {PA_CFG2,             0x7F}, //Power Amplifier Configuration Reg. 2
-  {PA_CFG1,             0x56}, //Power Amplifier Configuration Reg. 1
-  {PA_CFG0,             0x7C}, //Power Amplifier Configuration Reg. 0
-  {PKT_LEN,             127} //Packet Length Configuration
+#define LQI_CRC_OK_BM            0x80
+#define LQI_EST_BM               0x7F
+
+static uint8_t tx_frag_buf[2 + CC1120_TX_FIFO_SIZE];
+
+typedef struct {
+  uint8_t cw_on;
+  uint32_t duration_ms;
+} cw_pulse_t;
+
+// TX register settings
+// static const registerSetting_t TX_preferredSettings[] =
+//   {
+//     { IOCFG3, 0x06 },
+//     { IOCFG2, 0x02 },
+//     { IOCFG1, 0x40 },
+//     { IOCFG0, 0x40 },
+//     { SYNC3, 0x00 },
+//     { SYNC2, 0x00 },
+//     { SYNC1, 0x7A },
+//     { SYNC0, 0x0E },
+//     { SYNC_CFG1, 0x0B },
+//     { SYNC_CFG0, 0x03 }, /* No SYNC word. It is generated on the MPU and handled manually */
+//     { DCFILT_CFG, 0x1C },
+//     { PREAMBLE_CFG1, 0x00 }, /* No preamble. It is generated on the MPU and handled manually */
+//     { PREAMBLE_CFG0, 0x0A }, /* No preamble. It is generated on the MPU and handled manually */
+//     { IQIC, 0xC6 },
+//     { CHAN_BW, 0x08 },
+//     { MDMCFG0, 0x05 },
+//     { SYMBOL_RATE2, 0x01},
+//     { AGC_REF, 0x20 },
+//     { AGC_CS_THR, 0x19 },
+//     { AGC_CFG1, 0xA9 },
+//     { FIFO_CFG, CC1120_TXFIFO_THR },
+//     { SETTLING_CFG, 0x0b },
+//     { FS_CFG, 0x14 },
+//     { PKT_CFG1, 0x00 },
+//     { PKT_CFG0, CC1120_FIXED_PKT_LEN },
+//     { PA_CFG2, 0x3F },  //4-PACFG2 0X26, 6dBm 0x2B 2dbm 0x22,8 DBM 2F
+//   { PA_CFG0, 0x7D },
+//   { PKT_LEN, 0xFF },
+//   { IF_MIX_CFG, 0x00 },
+//   { FREQOFF_CFG, 0x22 },
+//   { FREQ2, 0x6C },
+//   { FREQ1, 0xF1 },
+//   { FREQ0, 0x2F },
+//   { FS_DIG1, 0x00 },
+//   { FS_DIG0, 0x5F },
+//   { FS_CAL1, 0x40 },
+//   { FS_CAL0, 0x0E },
+//   { FS_DIVTWO, 0x03 },
+//   { FS_DSM0, 0x33 },
+//   { FS_DVC0, 0x17 },
+//   { FS_PFD, 0x50 },
+//   { FS_PRE, 0x6E },
+//   { FS_REG_DIV_CML, 0x14 },
+//   { FS_SPARE, 0xAC },
+//   { FS_VCO4, 0x13 },
+//   { FS_VCO1, 0xAC },
+//   { FS_VCO0, 0xB4 },
+//   { XOSC5, 0x0E },
+//   { XOSC1, 0x03 },
+//   { DCFILTOFFSET_I1, 0xF8 },
+//   { DCFILTOFFSET_I0, 0x39 },
+//   { DCFILTOFFSET_Q1, 0x0E },
+//   { DCFILTOFFSET_Q0, 0x9B },
+//   { CFM_DATA_CFG, 0x00 },
+//   { IQIE_I1, 0xEF },
+//   { IQIE_I0, 0xDE },
+//   { IQIE_Q1, 0x02 },
+//   { IQIE_Q0, 0x2F },
+//   { AGC_GAIN1, 0x13 },
+//   { SERIAL_STATUS, 0x10 },
+//   { MODCFG_DEV_E, 0x0B } };
+static const registerSetting_t TX_preferredSettings[]= 
+{
+  {IOCFG3,            0xB0},
+  {IOCFG2,            0x08},
+  {IOCFG1,            0xB0},
+  {IOCFG0,            0x09},
+  {SYNC_CFG1,         0x0B},
+  {DCFILT_CFG,        0x1C},
+  {PREAMBLE_CFG1,     0x00},
+  {IQIC,              0xC6},
+  {MDMCFG1,           0x06},
+  {MDMCFG0,           0x05},
+  {AGC_REF,           0x20},
+  {AGC_CS_THR,        0x19},
+  {AGC_CFG1,          0xA9},
+  {AGC_CFG0,          0xCF},
+  {FIFO_CFG,          0x00},
+  {SETTLING_CFG,      0x03},
+  {FS_CFG,            0x14},
+  {PKT_CFG2,          0x05},
+  {PKT_CFG1,          0x00},
+  {PKT_CFG0,          0x20},
+  {PA_CFG2,           0x6B},
+  {IF_MIX_CFG,        0x00},
+  {FREQOFF_CFG,       0x22},
+  {FREQ2,             0x6C},
+  {FREQ1,             0x80},
+  {FS_DIG1,           0x00},
+  {FS_DIG0,           0x5F},
+  {FS_CAL1,           0x40},
+  {FS_CAL0,           0x0E},
+  {FS_DIVTWO,         0x03},
+  {FS_DSM0,           0x33},
+  {FS_DVC0,           0x17},
+  {FS_PFD,            0x50},
+  {FS_PRE,            0x6E},
+  {FS_REG_DIV_CML,    0x14},
+  {FS_SPARE,          0xAC},
+  {FS_VCO0,           0xB4},
+  {XOSC5,             0x0E},
+  {XOSC1,             0x03},
+  {PARTNUMBER,        0x48},
+  {PARTVERSION,       0x21},
+  {SERIAL_STATUS,     0x08},
+  {MODEM_STATUS1,     0x10},
 };
 
-//==================================================
-
-const registerSetting_t extendedRegisters1[]={ //configure extended register settings here
-{IF_MIX_CFG,          0x00}, //IF Mix Configuration
-  {FREQOFF_CFG,         0x22}, //Frequency Offset Correction Configuration
-  {TOC_CFG,             0x0B}, //Timing Offset Correction Configuration
-  {MARC_SPARE,          0x00}, //MARC Spare
-  {ECG_CFG,             0x00}, //External Clock Frequency Configuration
-  {CFM_DATA_CFG,        0x00}, //Custom frequency modulation enable
-  {EXT_CTRL,            0x01}, //External Control Configuration
-  {RCCAL_FINE,          0x00}, //RC Oscillator Calibration Fine
-  {RCCAL_COARSE,        0x00}, //RC Oscillator Calibration Coarse
-  {RCCAL_OFFSET,        0x00}, //RC Oscillator Calibration Clock Offset
-  {FREQOFF1,            0x00}, //Frequency Offset MSB
-  {FREQOFF0,            0x00}, //Frequency Offset LSB
-  {FREQ2,               0x6C}, //Frequency Configuration [23:16]
-  {FREQ1,               0x40}, //Frequency Configuration [15:8]
-  {FREQ0,               0x00}, //Frequency Configuration [7:0]
-  {IF_ADC2,             0x02}, //Analog to Digital Converter Configuration Reg. 2
-  {IF_ADC1,             0xA6}, //Analog to Digital Converter Configuration Reg. 1
-  {IF_ADC0,             0x04}, //Analog to Digital Converter Configuration Reg. 0
-  {FS_DIG1,             0x00}, //Frequency Synthesizer Digital Reg. 1
-  {FS_DIG0,             0x5F}, //Frequency Synthesizer Digital Reg. 0
-  {FS_CAL3,             0x00}, //Frequency Synthesizer Calibration Reg. 3
-  {FS_CAL2,             0x20}, //Frequency Synthesizer Calibration Reg. 2
-  {FS_CAL1,             0x40}, //Frequency Synthesizer Calibration Reg. 1
-  {FS_CAL0,             0x0E}, //Frequency Synthesizer Calibration Reg. 0
-  {FS_CHP,              0x27}, //Frequency Synthesizer Charge Pump Configuration
-  {FS_DIVTWO,           0x03}, //Frequency Synthesizer Divide by 2
-  {FS_DSM1,             0x00}, //FS Digital Synthesizer Module Configuration Reg. 1
-  {FS_DSM0,             0x33}, //FS Digital Synthesizer Module Configuration Reg. 0
-  {FS_DVC1,             0xFF}, //Frequency Synthesizer Divider Chain Configuration ..
-  {FS_DVC0,             0x17}, //Frequency Synthesizer Divider Chain Configuration ..
-  {FS_LBI,              0x00}, //Frequency Synthesizer Local Bias Configuration
-  {FS_PFD,              0x50}, //Frequency Synthesizer Phase Frequency Detector Con..
-  {FS_PRE,              0x6E}, //Frequency Synthesizer Prescaler Configuration
-  {FS_REG_DIV_CML,      0x14}, //Frequency Synthesizer Divider Regulator Configurat..
-  {FS_SPARE,            0xAC}, //Frequency Synthesizer Spare
-  {FS_VCO4,             0x13}, //FS Voltage Controlled Oscillator Configuration Reg..
-  {FS_VCO3,             0x00}, //FS Voltage Controlled Oscillator Configuration Reg..
-  {FS_VCO2,             0x4C}, //FS Voltage Controlled Oscillator Configuration Reg..
-  {FS_VCO1,             0x9C}, //FS Voltage Controlled Oscillator Configuration Reg..
-  {FS_VCO0,             0xB4}, //FS Voltage Controlled Oscillator Configuration Reg..
-  {GBIAS6,              0x00}, //Global Bias Configuration Reg. 6
-  {GBIAS5,              0x02}, //Global Bias Configuration Reg. 5
-  {GBIAS4,              0x00}, //Global Bias Configuration Reg. 4
-  {GBIAS3,              0x00}, //Global Bias Configuration Reg. 3
-  {GBIAS2,              0x10}, //Global Bias Configuration Reg. 2
-  {GBIAS1,              0x00}, //Global Bias Configuration Reg. 1
-  {GBIAS0,              0x00}, //Global Bias Configuration Reg. 0
-  {IFAMP,               0x01}, //Intermediate Frequency Amplifier Configuration
-  {LNA,                 0x01}, //Low Noise Amplifier Configuration
-  {RXMIX,               0x01}, //RX Mixer Configuration
-  {XOSC5,               0x0E}, //Crystal Oscillator Configuration Reg. 5
-  {XOSC4,               0xA0}, //Crystal Oscillator Configuration Reg. 4
-  {XOSC3,               0x03}, //Crystal Oscillator Configuration Reg. 3
-  {XOSC2,               0x04}, //Crystal Oscillator Configuration Reg. 2
-  {XOSC1,               0x03}, //Crystal Oscillator Configuration Reg. 1
-  {XOSC0,               0x00}, //Crystal Oscillator Configuration Reg. 0
-  {ANALOG_SPARE,        0x00}, //Analog Spare
-  {PA_CFG3,             0x00}, //Power Amplifier Configuration Reg. 3
-  {WOR_TIME1,           0x00}, //eWOR Timer Counter Value MSB
-  {WOR_TIME0,           0x00}, //eWOR Timer Counter Value LSB
-  {WOR_CAPTURE1,        0x00}, //eWOR Timer Capture Value MSB
-  {WOR_CAPTURE0,        0x00}, //eWOR Timer Capture Value LSB
-  {BIST,                0x00}, //MARC Built-In Self-Test
-  {DCFILTOFFSET_I1,     0xFC}, //DC Filter Offset I MSB
-  {DCFILTOFFSET_I0,     0x66}, //DC Filter Offset I LSB
-  {DCFILTOFFSET_Q1,     0x06}, //DC Filter Offset Q MSB
-  {DCFILTOFFSET_Q0,     0xE6}, //DC Filter Offset Q LSB
-  {IQIE_I1,             0xFD}, //IQ Imbalance Value I MSB
-  {IQIE_I0,             0x15}, //IQ Imbalance Value I LSB
-  {IQIE_Q1,             0x02}, //IQ Imbalance Value Q MSB
-  {IQIE_Q0,             0xEF}, //IQ Imbalance Value Q LSB
-  {RSSI1,               0xED}, //Received Signal Strength Indicator Reg. 1
-  {RSSI0,               0x03}, //Received Signal Strength Indicator Reg.0
-  {MARCSTATE,           0x33}, //MARC State
-  {LQI_VAL,             0x80}, //Link Quality Indicator Value
-  {PQT_SYNC_ERR,        0x9F}, //Preamble and Sync Word Error
-  {DEM_STATUS,          0x01}, //Demodulator Status
-  {FREQOFF_EST1,        0x00}, //Frequency Offset Estimate MSB
-  {FREQOFF_EST0,        0x0E}, //Frequency Offset Estimate LSB
-  {AGC_GAIN3,           0x27}, //Automatic Gain Control Reg. 3
-  {AGC_GAIN2,           0xD1}, //Automatic Gain Control Reg. 2
-  {AGC_GAIN1,           0x00}, //Automatic Gain Control Reg. 1
-  {AGC_GAIN0,           0x3F}, //Automatic Gain Control Reg. 0
-  {CFM_RX_DATA_OUT,     0x00}, //Custom Frequency Modulation RX Data
-  {CFM_TX_DATA_IN,      0x00}, //Custom Frequency Modulation TX Data
-  {ASK_SOFT_RX_DATA,    0x30}, //ASK Soft Decision Output
-  {RNDGEN,              0x7F}, //Random Number Generator Value
-  {MAGN2,               0x00}, //Signal Magnitude after CORDIC [16]
-  {MAGN1,               0x00}, //Signal Magnitude after CORDIC [15:8]
-  {MAGN0,               0x10}, //Signal Magnitude after CORDIC [7:0]
-  {ANG1,                0x00}, //Signal Angular after CORDIC [9:8]
-  {ANG0,                0xD5}, //Signal Angular after CORDIC [7:0]
-  {CHFILT_I2,           0x0F}, //Channel Filter Data Real Part [18:16]
-  {CHFILT_I1,           0xFF}, //Channel Filter Data Real Part [15:8]
-  {CHFILT_I0,           0xEE}, //Channel Filter Data Real Part [7:0]
-  {CHFILT_Q2,           0x00}, //Channel Filter Data Imaginary Part [18:16]
-  {CHFILT_Q1,           0x00}, //Channel Filter Data Imaginary Part [15:8]
-  {CHFILT_Q0,           0x11}, //Channel Filter Data Imaginary Part [7:0]
-  {GPIO_STATUS,         0x00}, //General Purpose Input/Output Status
-  {FSCAL_CTRL,          0x09}, //Frequency Synthesizer Calibration Control
-  {PHASE_ADJUST,        0x00}, //Frequency Synthesizer Phase Adjust
-  {PARTNUMBER,          0x48}, //Part Number
-  {PARTVERSION,         0x21}, //Part Revision
-  {SERIAL_STATUS,       0x00}, //Serial Status
-  {MODEM_STATUS1,       0x11}, //Modem Status Reg. 1
-  {MODEM_STATUS0,       0x00}, //Modem Status Reg. 0
-  {MARC_STATUS1,        0x40}, //MARC Status Reg. 1
-  {MARC_STATUS0,        0x00}, //MARC Status Reg. 0
-  {PA_IFAMP_TEST,       0x00}, //Power Amplifier Intermediate Frequency Amplifier T..
-  {FSRF_TEST,           0x00}, //Frequency Synthesizer Test
-  {PRE_TEST,            0x00}, //Frequency Synthesizer Prescaler Test
-  {PRE_OVR,             0x00}, //Frequency Synthesizer Prescaler Override
-  {ADC_TEST,            0x00}, //Analog to Digital Converter Test
-  {DVC_TEST,            0x0B}, //Digital Divider Chain Test
-  {ATEST,               0x40}, //Analog Test
-  {ATEST_LVDS,          0x00}, //Analog Test LVDS
-  {ATEST_MODE,          0x00}, //Analog Test Mode
-  {XOSC_TEST1,          0x3C}, //Crystal Oscillator Test Reg. 1
-  {XOSC_TEST0,          0x00}, //Crystal Oscillator Test Reg. 0
-  {RXFIRST,             0x00}, //RX FIFO Pointer First Entry
-  {TXFIRST,             0x0A}, //TX FIFO Pointer First Entry
-  {RXLAST,              0x00}, //RX FIFO Pointer Last Entry
-  {TXLAST,              0x0E}, //TX FIFO Pointer Last Entry
-  {NUM_TXBYTES,         0x04}, //TX FIFO Status
-  {NUM_RXBYTES,         0x00}, //RX FIFO Status
-  {FIFO_NUM_TXBYTES,    0x0F}, //TX FIFO Status
-  {FIFO_NUM_RXBYTES,    0x00}, //RX FIFO Status
+const registerSetting_t CW_preferredSettings[] =
+  {
+    { IOCFG3, 0xB0 },
+    { IOCFG2, 0x08 },
+    { IOCFG1, 0xB0 },
+    { IOCFG0, 0x09 },
+    { SYNC_CFG1, 0x0B },
+    { DEVIATION_M, 0x26 },
+    { MODCFG_DEV_E, 0x05 },
+    { DCFILT_CFG, 0x13 },
+    { PREAMBLE_CFG1, 0x00 },
+    { PREAMBLE_CFG0, 0x33 },
+    { IQIC, 0x00 },
+    { CHAN_BW, 0x03 },
+    { MDMCFG0, 0x04 },
+    { AGC_REF, 0x30 },
+    { AGC_CS_THR, 0xEC },
+    { AGC_CFG3, 0xD1 },
+    { AGC_CFG2, 0x3F },
+    { AGC_CFG1, 0x32 },
+    { AGC_CFG0, 0x9F },
+    { FIFO_CFG, 0x00 },
+    { FS_CFG, 0x14 },
+    { PKT_CFG2, 0x06 },
+    { PKT_CFG1, 0x00 },
+    { PKT_CFG0, 0x40 },
+    { PA_CFG2, 0x66 },
+    { PA_CFG0, 0x56 },
+    { IF_MIX_CFG, 0x00 },
+    { FREQOFF_CFG, 0x00 },
+    { TOC_CFG, 0x0A },
+    { CFM_DATA_CFG, 0x01 },
+    { FREQ2, 0x6C },
+    { FREQ1, 0xF1 },
+    { FREQ0, 0x2F },
+    { FS_DIG1, 0x00 },
+    { FS_DIG0, 0x5F },
+    { FS_CAL1, 0x40 },
+    { FS_CAL0, 0x0E },
+    { FS_DIVTWO, 0x03 },
+    { FS_DSM0, 0x33 },
+    { FS_DVC0, 0x17 },
+    { FS_PFD, 0x50 },
+    { FS_PRE, 0x6E },
+    { FS_REG_DIV_CML, 0x14 },
+    { FS_SPARE, 0xAC },
+    { FS_VCO0, 0xB4 },
+    { XOSC5, 0x0E },
+    { XOSC1, 0x03 },
 };
 /* USER CODE END Includes */
 
@@ -246,6 +248,32 @@ static void MX_USART2_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 /**
+ * Executes a command at the TX CC1120
+ * @param CMDStrobe the command code
+ * @return the first byte of the SPI buffer. Can be used for error checking
+ */
+uint8_t
+cc_tx_cmd (uint8_t CMDStrobe)
+{
+
+  uint8_t tx_buf;
+  uint8_t rx_buf;
+
+  tx_buf = CMDStrobe;
+
+  /* chip select LOw */
+  HAL_GPIO_WritePin (GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
+  /* Send-receive 1 byte */
+  HAL_SPI_TransmitReceive (&hspi2, &tx_buf, &rx_buf, sizeof(uint8_t), 5000);
+
+  HAL_GPIO_WritePin (GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
+
+  /*
+   * TODO: Return the whole RX buffer
+   */
+  return rx_buf;
+}
+/**
  * Writes a value to a register of the TX CC1120
  * @param addr the address of the register
  * @param data the data to be written
@@ -278,6 +306,151 @@ cc_tx_wr_reg (uint16_t addr, uint8_t data)
   HAL_GPIO_WritePin (GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
 
   return aRxBuffer[0];
+}
+
+/**
+ * Performs the setup of the TX CC1120 registers
+ */
+void
+tx_registerConfig ()
+{
+  unsigned char writeByte;
+  unsigned i;
+  // Reset radio
+  cc_tx_cmd (SRES);
+
+  // Write registers to radio
+  for (i = 0; i < (sizeof(TX_preferredSettings) / sizeof(registerSetting_t));
+      i++) {
+    writeByte = TX_preferredSettings[i].dat;
+    cc_tx_wr_reg (TX_preferredSettings[i].addr, writeByte);
+  }
+}
+
+/**
+ * Performs the setup of the TX CC1120 registers suitable for CW transmission
+ */
+void
+tx_cw_registerConfig ()
+{
+  unsigned char writeByte;
+  unsigned i;
+  // Reset radio
+  cc_tx_cmd (SRES);
+
+  // Write registers to radio
+  for (i = 0; i < (sizeof(CW_preferredSettings) / sizeof(registerSetting_t));
+      i++) {
+    writeByte = CW_preferredSettings[i].dat;
+    cc_tx_wr_reg (CW_preferredSettings[i].addr, writeByte);
+  }
+}
+
+/**
+ * Reads a register from the TX CC1120
+ * @param addr the desired register address
+ * @param data memory to store the value of the register
+ * @return the first byte of the SPI buffer. Can be used for error checking
+ */
+uint8_t
+cc_tx_rd_reg (uint16_t addr, uint8_t *data)
+{
+  uint8_t temp_TxBuffer[4];
+  uint8_t temp_RxBuffer[4] = { 0, 0, 0, 0 };
+  uint8_t len = 0;
+
+  if (addr >= CC_EXT_ADD) {
+    len = 3;
+
+    temp_TxBuffer[0] = 0xAF;
+    temp_TxBuffer[1] = (uint8_t) (0x00FF & addr);
+    temp_TxBuffer[2] = 0;
+  }
+  else {
+    len = 2;
+    /* bit masked for read function */
+    addr |= 0x0080;
+    temp_TxBuffer[0] = (uint8_t) (0x00FF & addr);
+    temp_TxBuffer[1] = 0;
+  }
+
+  HAL_GPIO_WritePin (GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
+  HAL_SPI_TransmitReceive (&hspi2, (uint8_t *) temp_TxBuffer,
+         (uint8_t *) temp_RxBuffer, len, 5000);
+  HAL_GPIO_WritePin (GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
+
+  *data = temp_RxBuffer[len - 1];
+
+  return temp_RxBuffer[0];
+}
+
+/**
+ * Write to the TX FIFO \p len bytes using the SPI bus
+ * @param data the input buffer containing the data
+ * @param spi_rx_data the SPI buffer for the return bytes
+ * @param len the number of bytes to be sent
+ * @return 0 on success of HAL_StatusTypeDef appropriate error code
+ */
+void
+cc_tx_spi_write_fifo(const uint8_t *data, uint8_t *spi_rx_data, size_t len)
+{
+  /* Write the Burst flag at the start of the buffer */
+  tx_frag_buf[0] = BURST_TXFIFO;
+  memcpy(tx_frag_buf + 1, data, len);
+
+  HAL_GPIO_WritePin (GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
+  HAL_SPI_Transmit(&hspi2, tx_frag_buf, len + 1, 5000);
+  HAL_GPIO_WritePin (GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
+  return;
+}
+
+/**
+ * Sets the register configuration for CW transmission
+ */
+static inline void
+set_tx_cw_regs()
+{
+  tx_cw_registerConfig();
+}
+
+/**
+ * Transmits data using CW
+ * @param in an array containing the CW symbols that should be sent
+ * @param len the length of the array
+ * @return CW_OK on success of an appropriate negative number with the
+ * appropriate error
+ */
+int32_t
+cc_tx_cw(const cw_pulse_t *in, size_t len)
+{
+  size_t i;
+  uint8_t t[4] = {0, 0, 0, 0};
+  uint8_t t2[16] = {0, 0};
+
+  /* Set the CC1120 into unmodulated continuous FM mode */
+  set_tx_cw_regs();
+  cc_tx_cmd (SFTX);
+
+  /*At least one byte should be written at the FIFO */
+  cc_tx_spi_write_fifo (t, t2, 4);
+
+  /*
+   * Switch on and off the carrier for the proper amount of time
+   */
+  for(i = 0; i < len; i++) {
+    if(in[i].cw_on){
+      cc_tx_cmd (STX);
+      HAL_Delay(in[i].duration_ms);
+      cc_tx_cmd (SIDLE);
+    }
+    else{
+      HAL_Delay(in[i].duration_ms);
+    }
+  }
+  cc_tx_cmd (SIDLE);
+  HAL_Delay(10);
+
+  return 0;
 }
 /* USER CODE END 0 */
 
@@ -314,7 +487,57 @@ int main(void)
   MX_SPI2_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-  uint8_t data1[] = {SRES , 0, SNOP, 0};
+
+  // Should return 0x (read ID)
+  uint8_t cc_id_tx = 65;
+  cc_tx_rd_reg (0x2F8F, &cc_id_tx);
+  HAL_Delay(1000);
+  HAL_UART_Transmit(&huart2, &cc_id_tx, sizeof(cc_id_tx), HAL_MAX_DELAY);
+
+  // Trying to read if autocal is on
+  cc_tx_cmd(SRES);
+  cc_id_tx = 65;
+  cc_tx_rd_reg (SETTLING_CFG, &cc_id_tx);
+  HAL_UART_Transmit(&huart2, &cc_id_tx, sizeof(cc_id_tx), HAL_MAX_DELAY);
+
+  uint8_t value = 65;
+
+  tx_cw_registerConfig();
+
+  // Trying to read if autocal is on
+  cc_id_tx = 65;
+  cc_tx_rd_reg (SETTLING_CFG, &cc_id_tx);
+  HAL_UART_Transmit(&huart2, &cc_id_tx, sizeof(cc_id_tx), HAL_MAX_DELAY);
+
+  HAL_Delay(10);
+
+  uint8_t buff[] = {1,0,1,0,1,0,1,0,1,0,
+                    1,0,1,0,1,0,1,0,1,0,
+                    1,0,1,0,1,0,1,0,1,0,
+                    1,0,1,0,1,0,1,0,1,0,
+                    1,0,1,0,1,0,1,0,1,0,
+                    1,0,1,0,1,0,1,0,1,0
+                    };
+  
+  cc_tx_spi_write_fifo(buff, &value, sizeof(buff));
+
+  // cc_id_tx = 65;
+  // cc_tx_rd_reg (0xbf, &cc_id_tx);
+  // HAL_UART_Transmit(&huart2, &cc_id_tx, sizeof(cc_id_tx), HAL_MAX_DELAY);
+
+  cc_tx_cmd(SFSTXON);
+  value = cc_tx_cmd(SNOP);
+  HAL_UART_Transmit(&huart2, &value, sizeof(value), 2000);
+
+  cc_tx_cmd(STX);
+
+  while(1){
+    value = cc_tx_cmd(SNOP);
+    HAL_UART_Transmit(&huart2, &value, sizeof(value), 2000);
+    HAL_Delay(1000);
+  }
+
+  HAL_GPIO_WritePin(GPIOA, LD2_Pin, GPIO_PIN_SET);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -324,25 +547,11 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    char buff[] = "fail\r\n";
-    char buff2[] = "pass\r\n";
-    for (int i = 0;; i++)
-      {
-          int result = 0;
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
-          HAL_SPI_TransmitReceive(&hspi2, (uint8_t *)&i, (uint8_t*)&result, sizeof(i), HAL_MAX_DELAY);
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
-          if (result != (i - 1))
-          {
-              asm("nop");
-              HAL_UART_Transmit(&huart2, buff, sizeof(buff), HAL_MAX_DELAY);
-          }
-          else{
-        	  HAL_UART_Transmit(&huart2, buff2, sizeof(buff2), HAL_MAX_DELAY);
-          }
-          HAL_Delay(10);
-      }
-  /* USER CODE END 3 */
+    // HAL_Delay(5000);
+    // cc_tx_spi_write_fifo(buff, &value, sizeof(buff));
+    // cc_tx_cmd(STX);
+    // HAL_GPIO_TogglePin(GPIOA, LD2_Pin);
+    /* USER CODE END 3 */
   }
 }
 
@@ -436,10 +645,10 @@ static void MX_SPI2_Init(void)
   hspi2.Init.Direction = SPI_DIRECTION_2LINES;
   hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi2.Init.CLKPhase = SPI_PHASE_2EDGE;
+  hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi2.Init.NSS = SPI_NSS_SOFT;
-  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
-  hspi2.Init.FirstBit = SPI_FIRSTBIT_LSB;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+  hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
   hspi2.Init.CRCPolynomial = 10;
