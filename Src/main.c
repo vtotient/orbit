@@ -279,6 +279,9 @@ cc_tx_wr_reg (uint16_t addr, uint8_t data)
 
   return aRxBuffer[0];
 }
+
+// Global variable for testing interrupt-driven UART
+uint8_t rx_data[4];
 /* USER CODE END 0 */
 
 /**
@@ -314,7 +317,8 @@ int main(void)
   MX_SPI2_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-  uint8_t data1[] = {SRES , 0, SNOP, 0};
+  // Enable interrupts for UART2 RX (not empty)
+  __HAL_UART_ENABLE_IT(&huart2, UART_IT_RXNE);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -322,26 +326,9 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-
+    // @todo handle queue data
     /* USER CODE BEGIN 3 */
-    char buff[] = "fail\r\n";
-    char buff2[] = "pass\r\n";
-    for (int i = 0;; i++)
-      {
-          int result = 0;
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
-          HAL_SPI_TransmitReceive(&hspi2, (uint8_t *)&i, (uint8_t*)&result, sizeof(i), HAL_MAX_DELAY);
-          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
-          if (result != (i - 1))
-          {
-              asm("nop");
-              HAL_UART_Transmit(&huart2, buff, sizeof(buff), HAL_MAX_DELAY);
-          }
-          else{
-        	  HAL_UART_Transmit(&huart2, buff2, sizeof(buff2), HAL_MAX_DELAY);
-          }
-          HAL_Delay(10);
-      }
+    
   /* USER CODE END 3 */
   }
 }
@@ -438,7 +425,7 @@ static void MX_SPI2_Init(void)
   hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi2.Init.CLKPhase = SPI_PHASE_2EDGE;
   hspi2.Init.NSS = SPI_NSS_SOFT;
-  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
   hspi2.Init.FirstBit = SPI_FIRSTBIT_LSB;
   hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;

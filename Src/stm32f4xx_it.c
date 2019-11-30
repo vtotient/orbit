@@ -21,6 +21,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "stm32f4xx_it.h"
+#include "rui.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 /* USER CODE END Includes */
@@ -32,7 +33,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
- 
+#define UART2_RX_BUFFER_SIZE RUI_INSTRUCTION_SIZE
+#define UART2_RX_ACK         0xAA
+#define UART2_RX_NACK        0x55
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -42,7 +45,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
-
+uint8_t uart2_rx_bufferr[UART2_RX_BUFFER_SIZE];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -56,7 +59,7 @@
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
-
+extern UART_HandleTypeDef huart2;
 /* USER CODE BEGIN EV */
 
 /* USER CODE END EV */
@@ -196,6 +199,42 @@ void SysTick_Handler(void)
 /* For the available peripheral interrupt handler names,                      */
 /* please refer to the startup file (startup_stm32f4xx.s).                    */
 /******************************************************************************/
+
+/**
+  * @brief This function handles USART2 global interrupt.
+  */
+void USART2_IRQHandler(void)
+{
+  /* USER CODE BEGIN USART2_IRQn 0 */
+  bool isValid = false;
+  /* USER CODE END USART2_IRQn 0 */
+  HAL_UART_IRQHandler(&huart2);
+  /* USER CODE BEGIN USART2_IRQn 1 */
+  HAL_UART_Receive_IT(&huart2, rx_data, sizeof(rx_data));
+
+  // Queue instruction if valid
+  // @todo Create a new module to hold all the tests and upper level code kicked off by the UART rx data.
+  //       Need API to queue the data. This IRQ should only call the API to queue the data. The RTOS can then handle 
+  //       the valid data checking and the handling of the queue. This way the IRQ is fast, and the RTOS can decide
+  //       when and how to run tests, return data.
+  // @note The RTOS can wait to queue tests, but it should rapidly respond to fetches and sets (use a priority queue)
+  // @note Reserve UART2 for this purpose only to simplify design
+  // @note Enqueues and Dequeues happen async., need to add a spin lock to the queue to ensure if a sort is in place it happen
+  //       atomically
+
+  // Push an rUI instruction onto the instruction queue and ack host
+  isValid = RUI_InstructionPush();
+
+  if(isValid)
+  {
+    HAL_UART_Transmit_IT(&huart2, UART2_RX_ACK, sizeof(UART2_RX_ACK)); // Instruction was valid
+  }
+  else
+  {
+    HAL_UART_Transmit_IT(&huart2, UART2_RX_NACK, sizeof(UART2_RX_NACK)); // Instruction was invalid
+  }
+  /* USER CODE END USART2_IRQn 1 */
+}
 
 /* USER CODE BEGIN 1 */
 
